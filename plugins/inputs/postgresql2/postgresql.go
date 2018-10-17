@@ -205,10 +205,6 @@ func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 	return nil
 }
 
-type scanner interface {
-	Scan(dest ...interface{}) error
-}
-
 func init() {
 	inputs.Add("postgresql2", func() telegraf.Input {
 		return &Postgresql{
