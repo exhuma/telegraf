@@ -82,7 +82,7 @@ func (p *Postgresql) AccumulateLocks(acc telegraf.Accumulator, locks []gopgstats
 	}
 }
 
-func (p *Postgresql) AccumulateDiskIOs(acc telegraf.Accumulator, ios []gopgstats.DiskIORow) {
+func (p *Postgresql) AccumulateDiskIOs(acc telegraf.Accumulator, ios []gopgstats.DiskIOsRow) {
 	for _, value := range ios {
 		fields := map[string]interface{}{
 			"HeapBlocksRead":       value.HeapBlocksRead,
