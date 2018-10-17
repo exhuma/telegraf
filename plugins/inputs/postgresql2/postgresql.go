@@ -111,8 +111,7 @@ func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 	}
 	p.AccumulateLocks(acc, locks)
 
-	dbs := []string{"exhuma", "lost_tracker"}
-	diskio, err := fetcher.DiskIO(dbs, p.Address)
+	diskio, err := fetcher.DiskIOAll(p.Address)
 	if err != nil {
 		return err
 	}
