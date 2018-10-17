@@ -101,6 +101,34 @@ func (p *Postgresql) AccumulateDiskIOs(acc telegraf.Accumulator, ios []gopgstats
 	}
 }
 
+func (p *Postgresql) AccumulateDiskSizes(acc telegraf.Accumulator, ios []gopgstats.DiskSizesRow) {
+	for _, value := range ios {
+		fields := map[string]interface{}{
+			"Size": value.Size,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-disk-size", fields, tags)
+	}
+}
+
+func (p *Postgresql) AccumulateConnections(acc telegraf.Accumulator, connections []gopgstats.ConnectionsRow) {
+	for _, value := range connections {
+		fields := map[string]interface{}{
+			"Idle":              value.Idle,
+			"IdleInTransaction": value.IdleInTransaction,
+			"Unknown":           value.Unknown,
+			"QueryActive":       value.QueryActive,
+			"Waiting":           value.Waiting,
+		}
+		tags := map[string]string{
+			"username": value.Username,
+		}
+		acc.AddFields("postgresql2-connections", fields, tags)
+	}
+}
+
 func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 	var err error
 
@@ -110,6 +138,18 @@ func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 		return err
 	}
 	p.AccumulateLocks(acc, locks)
+
+	diskSizes, err := fetcher.DiskSize()
+	if err != nil {
+		return err
+	}
+	p.AccumulateDiskSizes(acc, diskSizes)
+
+	connections, err := fetcher.Connections()
+	if err != nil {
+		return err
+	}
+	p.AccumulateConnections(acc, connections)
 
 	diskio, err := fetcher.DiskIOAll(p.Address)
 	if err != nil {
