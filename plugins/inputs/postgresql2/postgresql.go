@@ -1,0 +1,141 @@
+package postgresql2
+
+import (
+	_ "fmt" // XXX
+
+	// register in driver.
+	_ "github.com/lib/pq"
+
+	"github.com/exhuma/gopgstats"
+
+	"github.com/influxdata/telegraf"
+	"github.com/influxdata/telegraf/internal"
+	"github.com/influxdata/telegraf/plugins/inputs"
+)
+
+type Postgresql struct {
+	Service
+	Databases        []string
+	IgnoredDatabases []string
+}
+
+var sampleConfig = `
+  ## specify address via a url matching:
+  ##   postgres://[pqgotest[:password]]@localhost[/dbname]\
+  ##       ?sslmode=[disable|verify-ca|verify-full]
+  ## or a simple string:
+  ##   host=localhost user=pqotest password=... sslmode=... dbname=app_production
+  ##
+  ## All connection parameters are optional.
+  ##
+  ## Without the dbname parameter, the driver will default to a database
+  ## with the same name as the user. This dbname is just for instantiating a
+  ## connection with the server and doesn't restrict the databases we are trying
+  ## to grab metrics for.
+  ##
+  address = "host=localhost user=postgres sslmode=disable"
+  ## A custom name for the database that will be used as the "server" tag in the
+  ## measurement output. If not specified, a default one generated from
+  ## the connection address is used.
+  # outputaddress = "db01"
+
+  ## connection configuration.
+  ## maxlifetime - specify the maximum lifetime of a connection.
+  ## default is forever (0s)
+  max_lifetime = "0s"
+
+  ## A  list of databases to explicitly ignore.  If not specified, metrics for all
+  ## databases are gathered.  Do NOT use with the 'databases' option.
+  # ignored_databases = ["postgres", "template0", "template1"]
+
+  ## A list of databases to pull metrics about. If not specified, metrics for all
+  ## databases are gathered.  Do NOT use with the 'ignored_databases' option.
+  # databases = ["app_production", "testing"]
+`
+
+func (p *Postgresql) SampleConfig() string {
+	return sampleConfig
+}
+
+func (p *Postgresql) Description() string {
+	return "Read metrics from one or many postgresql servers"
+}
+
+func (p *Postgresql) AccumulateLocks(acc telegraf.Accumulator, locks []gopgstats.LocksRow) {
+	for _, value := range locks {
+		fields := map[string]interface{}{
+			"lock_count": value.Count,
+		}
+		var isGranted string
+		if value.Granted {
+			isGranted = "true"
+		} else {
+			isGranted = "false"
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+			"mode":          value.Mode,
+			"type":          value.Type,
+			"granted":       isGranted,
+		}
+		acc.AddFields("postgresql2-locks", fields, tags)
+	}
+}
+
+func (p *Postgresql) AccumulateDiskIOs(acc telegraf.Accumulator, ios []gopgstats.DiskIORow) {
+	for _, value := range ios {
+		fields := map[string]interface{}{
+			"HeapBlocksRead":       value.HeapBlocksRead,
+			"HeapBlocksHit":        value.HeapBlocksHit,
+			"IndexBlocksRead":      value.IndexBlocksRead,
+			"IndexBlocksHit":       value.IndexBlocksHit,
+			"ToastBlocksRead":      value.ToastBlocksRead,
+			"ToastBlocksHit":       value.ToastBlocksHit,
+			"ToastIndexBlocksRead": value.ToastIndexBlocksRead,
+			"ToastIndexBlocksHit":  value.ToastIndexBlocksHit,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-disk-ios", fields, tags)
+	}
+}
+
+func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
+	var err error
+
+	fetcher := gopgstats.MakeDefaultFetcher(p.DB)
+	locks, err := fetcher.Locks()
+	if err != nil {
+		return err
+	}
+	p.AccumulateLocks(acc, locks)
+
+	dbs := []string{"exhuma", "lost_tracker"}
+	diskio, err := fetcher.DiskIO(dbs, p.Address)
+	if err != nil {
+		return err
+	}
+	p.AccumulateDiskIOs(acc, diskio)
+
+	return nil
+}
+
+type scanner interface {
+	Scan(dest ...interface{}) error
+}
+
+func init() {
+	inputs.Add("postgresql2", func() telegraf.Input {
+		return &Postgresql{
+			Service: Service{
+				MaxIdle: 1,
+				MaxOpen: 1,
+				MaxLifetime: internal.Duration{
+					Duration: 0,
+				},
+				IsPgBouncer: false,
+			},
+		}
+	})
+}
