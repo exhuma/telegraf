@@ -129,10 +129,25 @@ func (p *Postgresql) AccumulateConnections(acc telegraf.Accumulator, connections
 	}
 }
 
+func (p *Postgresql) AccumulateQueryAges(acc telegraf.Accumulator, ages []gopgstats.QueryAgesRow) {
+	for _, value := range ages {
+		fields := map[string]interface{}{
+			"QueryAge":       value.QueryAge,
+			"TransactionAge": value.TransactionAge,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-query-ages", fields, tags)
+	}
+}
+
 func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 	var err error
 
 	fetcher := gopgstats.MakeDefaultFetcher(p.DB)
+
+	// global stats
 	locks, err := fetcher.Locks()
 	if err != nil {
 		return err
@@ -150,6 +165,12 @@ func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 		return err
 	}
 	p.AccumulateConnections(acc, connections)
+
+	ages, err := fetcher.QueryAges()
+	if err != nil {
+		return err
+	}
+	p.AccumulateQueryAges(acc, ages)
 
 	diskio, err := fetcher.DiskIOAll(p.Address)
 	if err != nil {
