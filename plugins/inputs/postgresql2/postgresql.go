@@ -154,8 +154,17 @@ func (p *Postgresql) AccumulateTransactions(acc telegraf.Accumulator, transactio
 		acc.AddFields("postgresql2-query-transactions", fields, tags)
 	}
 }
-
-// TODO Transactions() ([]TransactionsRow, error) {
+func (p *Postgresql) AccumulateTempBytes(acc telegraf.Accumulator, tempBytes []gopgstats.TempBytesRow) {
+	for _, value := range tempBytes {
+		fields := map[string]interface{}{
+			"TemporaryBytes": value.TemporaryBytes,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-query-temp-bytes", fields, tags)
+	}
+}
 
 func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 	var err error
@@ -193,7 +202,11 @@ func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 	}
 	p.AccumulateTransactions(acc, transactions)
 
-	// TODO TempBytes() ([]TempBytesRow, error) {
+	tempBytes, err := fetcher.TempBytes()
+	if err != nil {
+		return err
+	}
+	p.AccumulateTempBytes(acc, tempBytes)
 
 	// db-local stats
 	diskio, err := fetcher.DiskIOAll(p.Address)
