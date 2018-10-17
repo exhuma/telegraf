@@ -142,6 +142,21 @@ func (p *Postgresql) AccumulateQueryAges(acc telegraf.Accumulator, ages []gopgst
 	}
 }
 
+func (p *Postgresql) AccumulateTransactions(acc telegraf.Accumulator, transactions []gopgstats.TransactionsRow) {
+	for _, value := range transactions {
+		fields := map[string]interface{}{
+			"Committed":  value.Committed,
+			"Rolledback": value.Rolledback,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-query-transactions", fields, tags)
+	}
+}
+
+// TODO Transactions() ([]TransactionsRow, error) {
+
 func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 	var err error
 
@@ -172,6 +187,15 @@ func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 	}
 	p.AccumulateQueryAges(acc, ages)
 
+	transactions, err := fetcher.Transactions()
+	if err != nil {
+		return err
+	}
+	p.AccumulateTransactions(acc, transactions)
+
+	// TODO TempBytes() ([]TempBytesRow, error) {
+
+	// db-local stats
 	diskio, err := fetcher.DiskIOAll(p.Address)
 	if err != nil {
 		return err
