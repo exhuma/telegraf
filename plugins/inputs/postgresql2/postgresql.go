@@ -155,6 +155,22 @@ func (p *Postgresql) AccumulateRowAccesses(acc telegraf.Accumulator, ios []gopgs
 	}
 }
 
+func (p *Postgresql) AccumulateSizeBreakdown(acc telegraf.Accumulator, ios []gopgstats.SizeBreakdownRow) {
+	for _, value := range ios {
+		fields := map[string]interface{}{
+			"Main":      value.Main,
+			"Vm":        value.Vm,
+			"Fsm":       value.Fsm,
+			"Toast":     value.Toast,
+			"Indexes":   value.Indexes,
+			"DiskFiles": value.DiskFiles,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-size-breakdown", fields, tags)
+	}
+}
 func (p *Postgresql) AccumulateDiskSizes(acc telegraf.Accumulator, ios []gopgstats.DiskSizesRow) {
 	for _, value := range ios {
 		fields := map[string]interface{}{
@@ -292,6 +308,12 @@ func (p *Postgresql) fetchLocalStats(fetcher gopgstats.DefaultFetcher, acc teleg
 		return err
 	}
 	p.AccumulateRowAccesses(acc, rowAccesses)
+
+	sizeBreakdowns, err := fetcher.SizeBreakdownAll(p.Address)
+	if err != nil {
+		return err
+	}
+	p.AccumulateSizeBreakdown(acc, sizeBreakdowns)
 
 	return nil
 }
