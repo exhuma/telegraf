@@ -166,12 +166,8 @@ func (p *Postgresql) AccumulateTempBytes(acc telegraf.Accumulator, tempBytes []g
 	}
 }
 
-func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
-	var err error
-
-	fetcher := gopgstats.MakeDefaultFetcher(p.DB)
-
-	// global stats
+// Fetches stats which are global to the database "cluster"
+func (p *Postgresql) fetchGlobalStats(fetcher gopgstats.DefaultFetcher, acc telegraf.Accumulator) error {
 	locks, err := fetcher.Locks()
 	if err != nil {
 		return err
@@ -207,14 +203,30 @@ func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
 		return err
 	}
 	p.AccumulateTempBytes(acc, tempBytes)
+	return nil
+}
 
-	// db-local stats
+// Fetches stats which are local to each database.
+func (p *Postgresql) fetchLocalStats(fetcher gopgstats.DefaultFetcher, acc telegraf.Accumulator) error {
 	diskio, err := fetcher.DiskIOAll(p.Address)
 	if err != nil {
 		return err
 	}
 	p.AccumulateDiskIOs(acc, diskio)
+	return nil
+}
 
+func (p *Postgresql) Gather(acc telegraf.Accumulator) error {
+	var err error
+	fetcher := gopgstats.MakeDefaultFetcher(p.DB)
+	err = p.fetchGlobalStats(fetcher, acc)
+	if err != nil {
+		return err
+	}
+	err = p.fetchLocalStats(fetcher, acc)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
