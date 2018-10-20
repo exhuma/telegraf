@@ -101,6 +101,32 @@ func (p *Postgresql) AccumulateDiskIOs(acc telegraf.Accumulator, ios []gopgstats
 	}
 }
 
+func (p *Postgresql) AccumulateIndexIOs(acc telegraf.Accumulator, ios []gopgstats.IndexIOsRow) {
+	for _, value := range ios {
+		fields := map[string]interface{}{
+			"IndexBlocksRead": value.IndexBlocksRead,
+			"IndexBlocksHit":  value.IndexBlocksHit,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-index-ios", fields, tags)
+	}
+}
+
+func (p *Postgresql) AccumulateSequencesIOs(acc telegraf.Accumulator, ios []gopgstats.SequencesIOsRow) {
+	for _, value := range ios {
+		fields := map[string]interface{}{
+			"BlocksRead": value.BlocksRead,
+			"BlocksHit":  value.BlocksHit,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-sequences-ios", fields, tags)
+	}
+}
+
 func (p *Postgresql) AccumulateDiskSizes(acc telegraf.Accumulator, ios []gopgstats.DiskSizesRow) {
 	for _, value := range ios {
 		fields := map[string]interface{}{
@@ -154,6 +180,7 @@ func (p *Postgresql) AccumulateTransactions(acc telegraf.Accumulator, transactio
 		acc.AddFields("postgresql2-query-transactions", fields, tags)
 	}
 }
+
 func (p *Postgresql) AccumulateTempBytes(acc telegraf.Accumulator, tempBytes []gopgstats.TempBytesRow) {
 	for _, value := range tempBytes {
 		fields := map[string]interface{}{
@@ -213,6 +240,19 @@ func (p *Postgresql) fetchLocalStats(fetcher gopgstats.DefaultFetcher, acc teleg
 		return err
 	}
 	p.AccumulateDiskIOs(acc, diskio)
+
+	indexio, err := fetcher.IndexIOAll(p.Address)
+	if err != nil {
+		return err
+	}
+	p.AccumulateIndexIOs(acc, indexio)
+
+	sequenceio, err := fetcher.SequencesIOAll(p.Address)
+	if err != nil {
+		return err
+	}
+	p.AccumulateSequencesIOs(acc, sequenceio)
+
 	return nil
 }
 
