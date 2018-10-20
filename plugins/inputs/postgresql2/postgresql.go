@@ -127,6 +127,19 @@ func (p *Postgresql) AccumulateSequencesIOs(acc telegraf.Accumulator, ios []gopg
 	}
 }
 
+func (p *Postgresql) AccumulateScanTypes(acc telegraf.Accumulator, ios []gopgstats.ScanTypesRow) {
+	for _, value := range ios {
+		fields := map[string]interface{}{
+			"IndexScans":      value.IndexScans,
+			"SequentialScans": value.SequentialScans,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-scan-types", fields, tags)
+	}
+}
+
 func (p *Postgresql) AccumulateDiskSizes(acc telegraf.Accumulator, ios []gopgstats.DiskSizesRow) {
 	for _, value := range ios {
 		fields := map[string]interface{}{
@@ -252,6 +265,12 @@ func (p *Postgresql) fetchLocalStats(fetcher gopgstats.DefaultFetcher, acc teleg
 		return err
 	}
 	p.AccumulateSequencesIOs(acc, sequenceio)
+
+	scanTypes, err := fetcher.ScanTypesAll(p.Address)
+	if err != nil {
+		return err
+	}
+	p.AccumulateScanTypes(acc, scanTypes)
 
 	return nil
 }
