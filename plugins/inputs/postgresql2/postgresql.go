@@ -140,6 +140,21 @@ func (p *Postgresql) AccumulateScanTypes(acc telegraf.Accumulator, ios []gopgsta
 	}
 }
 
+func (p *Postgresql) AccumulateRowAccesses(acc telegraf.Accumulator, ios []gopgstats.RowAccessesRow) {
+	for _, value := range ios {
+		fields := map[string]interface{}{
+			"InsertedTuples":   value.InsertedTuples,
+			"UpdatedTuples":    value.UpdatedTuples,
+			"DeletedTuples":    value.DeletedTuples,
+			"HOTUpdatedTuples": value.HOTUpdatedTuples,
+		}
+		tags := map[string]string{
+			"database_name": value.DatabaseName,
+		}
+		acc.AddFields("postgresql2-row-accesses", fields, tags)
+	}
+}
+
 func (p *Postgresql) AccumulateDiskSizes(acc telegraf.Accumulator, ios []gopgstats.DiskSizesRow) {
 	for _, value := range ios {
 		fields := map[string]interface{}{
@@ -271,6 +286,12 @@ func (p *Postgresql) fetchLocalStats(fetcher gopgstats.DefaultFetcher, acc teleg
 		return err
 	}
 	p.AccumulateScanTypes(acc, scanTypes)
+
+	rowAccesses, err := fetcher.RowAccessesAll(p.Address)
+	if err != nil {
+		return err
+	}
+	p.AccumulateRowAccesses(acc, rowAccesses)
 
 	return nil
 }
